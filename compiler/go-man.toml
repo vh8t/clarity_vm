@@ -1,0 +1,4 @@
+[Project]
+name = "compiler"
+build_dir = "build"
+make = "src/main.go"
