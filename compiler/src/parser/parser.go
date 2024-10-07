@@ -39,9 +39,15 @@ const (
 	HLT
 )
 
+type Ref struct {
+	Label  string
+	Offset int
+}
+
 func Parse(tokens []lexer.Token) (bytecode []byte) {
 	var err bool
-	var offset int
+	var bcOffset, pcOffset int
+	var loops int
 
 	unknown := make(map[int]string)
 	labels := make(map[string]int)
@@ -55,7 +61,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				fmt.Fprintf(os.Stderr, "duplicate label: `%s`\n", token.Value)
 				err = true
 			} else {
-				labels[token.Value] = offset
+				labels[token.Value] = pcOffset
 			}
 			i++
 		case lexer.INSTR:
@@ -72,7 +78,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, ADD, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
-				offset += 3
+				bcOffset += 3
 				i += 4
 			case "sub":
 				if i+3 >= len(tokens) {
@@ -86,7 +92,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, SUB, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
-				offset += 3
+				bcOffset += 3
 				i += 4
 			case "mul":
 				if i+3 >= len(tokens) {
@@ -100,7 +106,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, MUL, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
-				offset += 3
+				bcOffset += 3
 				i += 4
 			case "div":
 				if i+3 >= len(tokens) {
@@ -114,7 +120,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, DIV, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
-				offset += 3
+				bcOffset += 3
 				i += 4
 			case "mod":
 				if i+3 >= len(tokens) {
@@ -128,7 +134,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, MOD, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
-				offset += 3
+				bcOffset += 3
 				i += 4
 			case "inc":
 				if i+1 >= len(tokens) {
@@ -142,7 +148,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, INC, regToByte(tokens[i+1].Value))
-				offset += 2
+				bcOffset += 2
 				i += 2
 			case "dec":
 				if i+1 >= len(tokens) {
@@ -156,7 +162,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, DEC, regToByte(tokens[i+1].Value))
-				offset += 2
+				bcOffset += 2
 				i += 2
 			case "and":
 				if i+3 >= len(tokens) {
@@ -170,7 +176,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, AND, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
-				offset += 3
+				bcOffset += 3
 				i += 4
 			case "or":
 				if i+3 >= len(tokens) {
@@ -184,7 +190,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, OR, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
-				offset += 3
+				bcOffset += 3
 				i += 4
 			case "xor":
 				if i+3 >= len(tokens) {
@@ -198,7 +204,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, XOR, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
-				offset += 3
+				bcOffset += 3
 				i += 4
 			case "not":
 				if i+1 >= len(tokens) {
@@ -212,7 +218,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, NOT, regToByte(tokens[i+1].Value))
-				offset += 2
+				bcOffset += 2
 				i += 2
 			case "shl":
 				if i+3 >= len(tokens) {
@@ -229,7 +235,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				b := int32ToBytes(n)
 				bytecode = append(bytecode, SHL, regToByte(tokens[i+1].Value))
 				bytecode = append(bytecode, b...)
-				offset += 6
+				bcOffset += 6
 				i += 4
 			case "shr":
 				if i+3 >= len(tokens) {
@@ -246,7 +252,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				b := int32ToBytes(n)
 				bytecode = append(bytecode, SHR, regToByte(tokens[i+1].Value))
 				bytecode = append(bytecode, b...)
-				offset += 6
+				bcOffset += 6
 				i += 4
 			case "mov":
 				if i+3 >= len(tokens) {
@@ -263,7 +269,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				b := int32ToBytes(n)
 				bytecode = append(bytecode, MOV, regToByte(tokens[i+1].Value))
 				bytecode = append(bytecode, b...)
-				offset += 6
+				bcOffset += 6
 				i += 4
 			case "load":
 				if i+3 >= len(tokens) {
@@ -280,7 +286,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				b := int32ToBytes(n)
 				bytecode = append(bytecode, LOAD, regToByte(tokens[i+1].Value))
 				bytecode = append(bytecode, b...)
-				offset += 6
+				bcOffset += 6
 				i += 4
 			case "store":
 				if i+3 >= len(tokens) {
@@ -297,7 +303,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				b := int32ToBytes(n)
 				bytecode = append(bytecode, STORE, regToByte(tokens[i+1].Value))
 				bytecode = append(bytecode, b...)
-				offset += 6
+				bcOffset += 6
 				i += 4
 			case "push":
 				if i+1 >= len(tokens) {
@@ -311,7 +317,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, PUSH, regToByte(tokens[i+1].Value))
-				offset += 2
+				bcOffset += 2
 				i += 2
 			case "pop":
 				if i+1 >= len(tokens) {
@@ -325,7 +331,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, POP, regToByte(tokens[i+1].Value))
-				offset += 2
+				bcOffset += 2
 				i += 2
 			case "jmp":
 				if i+1 >= len(tokens) {
@@ -344,11 +350,11 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					b = int32ToBytes(int32(n))
 				} else {
 					b = []byte{0, 0, 0, 0}
-					unknown[offset+1] = tokens[i+1].Value
+					unknown[bcOffset+1] = tokens[i+1].Value
 				}
 				bytecode = append(bytecode, JMP)
 				bytecode = append(bytecode, b...)
-				offset += 5
+				bcOffset += 5
 				i += 2
 			case "jz":
 				if i+1 >= len(tokens) {
@@ -367,11 +373,11 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					b = int32ToBytes(int32(n))
 				} else {
 					b = []byte{0, 0, 0, 0}
-					unknown[offset+1] = tokens[i+1].Value
+					unknown[bcOffset+1] = tokens[i+1].Value
 				}
 				bytecode = append(bytecode, JZ)
 				bytecode = append(bytecode, b...)
-				offset += 5
+				bcOffset += 5
 				i += 2
 			case "jnz":
 				if i+1 >= len(tokens) {
@@ -390,11 +396,11 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					b = int32ToBytes(int32(n))
 				} else {
 					b = []byte{0, 0, 0, 0}
-					unknown[offset+1] = tokens[i+1].Value
+					unknown[bcOffset+1] = tokens[i+1].Value
 				}
 				bytecode = append(bytecode, JNZ)
 				bytecode = append(bytecode, b...)
-				offset += 5
+				bcOffset += 5
 				i += 2
 			case "jg":
 				if i+1 >= len(tokens) {
@@ -413,11 +419,11 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					b = int32ToBytes(int32(n))
 				} else {
 					b = []byte{0, 0, 0, 0}
-					unknown[offset+1] = tokens[i+1].Value
+					unknown[bcOffset+1] = tokens[i+1].Value
 				}
 				bytecode = append(bytecode, JG)
 				bytecode = append(bytecode, b...)
-				offset += 5
+				bcOffset += 5
 				i += 2
 			case "jl":
 				if i+1 >= len(tokens) {
@@ -436,11 +442,11 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					b = int32ToBytes(int32(n))
 				} else {
 					b = []byte{0, 0, 0, 0}
-					unknown[offset+1] = tokens[i+1].Value
+					unknown[bcOffset+1] = tokens[i+1].Value
 				}
 				bytecode = append(bytecode, JL)
 				bytecode = append(bytecode, b...)
-				offset += 5
+				bcOffset += 5
 				i += 2
 			case "call":
 				if i+1 >= len(tokens) {
@@ -459,15 +465,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					b = int32ToBytes(int32(n))
 				} else {
 					b = []byte{0, 0, 0, 0}
-					unknown[offset+1] = tokens[i+1].Value
+					unknown[bcOffset+1] = tokens[i+1].Value
 				}
 				bytecode = append(bytecode, CALL)
 				bytecode = append(bytecode, b...)
-				offset += 5
+				bcOffset += 5
 				i += 2
 			case "ret":
 				bytecode = append(bytecode, RET)
-				offset++
+				bcOffset++
 				i++
 			case "cmp":
 				if i+3 >= len(tokens) {
@@ -481,7 +487,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, CMP, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
-				offset += 3
+				bcOffset += 3
 				i += 4
 			case "test":
 				if i+3 >= len(tokens) {
@@ -495,22 +501,28 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					err = true
 				}
 				bytecode = append(bytecode, TEST, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
-				offset += 3
+				bcOffset += 3
 				i += 4
 			case "nop":
 				bytecode = append(bytecode, NOP)
-				offset++
+				bcOffset++
 				i++
 			case "hlt":
 				bytecode = append(bytecode, HLT)
-				offset++
+				bcOffset++
 				i++
 			}
+			pcOffset++
 		}
 
 		if i < len(tokens) && tokens[i].Kind == lexer.NEWLINE {
+			loops = 0
 			i++
 		} else {
+			if loops > 2 {
+				break
+			}
+			loops++
 			fmt.Fprintf(os.Stderr, "missing new line after instruction\n")
 			err = true
 		}

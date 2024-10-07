@@ -139,6 +139,7 @@ void VM::execute(const Instruction instr) {
         std::cerr << "unknow opcode: " << instr.opcode << std::endl;
         break;
     }
+    pc++;
 }
 
 void VM::run(const std::vector<Instruction> &program) {
@@ -155,6 +156,5 @@ void VM::run(const std::vector<Instruction> &program) {
         }
 
         execute(program[pc]);
-        pc++;
     }
 }
