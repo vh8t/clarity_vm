@@ -36,7 +36,7 @@ uint32_t bytesToUint32(const std::vector<uint8_t> &bytes, int offset) {
 std::vector<Instruction> bytes_to_prog(std::vector<uint8_t> bytes) {
     std::vector<Instruction> prog;
 
-    for (int i = 0; i < bytes.size(); i++) {
+    for (size_t i = 0; i < bytes.size(); i++) {
         uint8_t opcode = bytes[i];
         Instruction instr;
         switch (opcode) {
@@ -79,35 +79,23 @@ std::vector<Instruction> bytes_to_prog(std::vector<uint8_t> bytes) {
 };
 
 int main(int argc, char **argv) {
-    // clang-format off
-    // std::vector<Instruction> program = {
-    //     {MOV, 0, 10},
-    //     {MOV, 1, 20},
-    //     {ADD, 0, 1},
-    //     {PUSH, 0},
-    //     {POP, 2},
-    //     {HLT},
-    // };
-    // clang-format on
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <file>" << std::endl;
+        return 1;
+    }
 
     std::vector<uint8_t> file_data;
     try {
         file_data = read_file(argv[1]);
     } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;
+        return 1;
     }
 
     std::vector<Instruction> prog = bytes_to_prog(file_data);
-    // std::cout << prog.size() << std::endl;
-
-    // for (int i = 0; i < prog.size(); i++) {
-    //     Instruction inst = prog[i];
-    //     std::cout << inst.opcode << " " << inst.operand1 << " " <<
-    //     inst.operand2
-    //               << std::endl;
-    // }
-    // return 0;
 
     VM vm;
     vm.run(prog);
+
+    return 0;
 }
