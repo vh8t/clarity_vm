@@ -29,10 +29,11 @@ func regToByte(reg string) byte {
 }
 
 func strToInt32(s string) int32 {
-	i64, err := strconv.ParseInt(s, 10, 32)
+	i64, err := strconv.ParseInt(s, 0, 32)
 	if err != nil {
 		panic(err)
 	}
+
 	return int32(i64)
 }
 

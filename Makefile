@@ -9,7 +9,7 @@ DIST_DIR = dist
 SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
 OBJECTS = $(patsubst $(SRC_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(SOURCES))
 
-TARGET = $(DIST_DIR)/vm
+TARGET = $(DIST_DIR)/clarity
 
 all: $(TARGET)
 

@@ -64,13 +64,27 @@ func Tokenize(source []byte) (tokens []Token) {
 				})
 			}
 		case isdigit(char):
-			for isdigit(char) {
-				buf += string(char)
-				i++
-				if i >= len(source) {
-					break
-				}
+			if char == '0' && i+2 < len(source) && source[i+1] == 'x' {
+				buf += "0x"
+				i += 2
 				char = source[i]
+				for isdigit(char) || ('a' <= char && char <= 'f') {
+					buf += string(char)
+					i++
+					if i >= len(source) {
+						break
+					}
+					char = source[i]
+				}
+			} else {
+				for isdigit(char) {
+					buf += string(char)
+					i++
+					if i >= len(source) {
+						break
+					}
+					char = source[i]
+				}
 			}
 
 			tokens = append(tokens, Token{
@@ -108,6 +122,14 @@ func Tokenize(source []byte) (tokens []Token) {
 				Kind:  NEWLINE,
 			})
 			i++
+		case char == ';':
+			for char != '\n' {
+				i++
+				if i >= len(source) {
+					break
+				}
+				char = source[i]
+			}
 		case char == ' ' || char == '\t' || char == '\r':
 			i++
 		default:

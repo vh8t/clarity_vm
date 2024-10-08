@@ -97,7 +97,7 @@ void VM::execute(const Instruction instr) {
         }
         break;
     case CALL:
-        stack[sp++] = pc;
+        stack[sp++] = pc + 1;
         pc = instr.operand1;
         return;
     case RET:
@@ -142,13 +142,13 @@ void VM::execute(const Instruction instr) {
     pc++;
 }
 
-void VM::run(const std::vector<Instruction> &program) {
+void VM::run(const std::vector<Instruction> &program, const uint32_t start) {
     running = true;
-    pc = 0;
+    pc = start;
 
     while (running) {
         if (DEBUG) {
-            std::cout << "==== VM State ====" << std::endl;
+            std::cout << "\n==== VM State ====" << std::endl;
             print_cpu_state(cpu);
             print_stack(stack, sp);
             std::cout << "PC: " << pc << "\n==================" << std::endl;

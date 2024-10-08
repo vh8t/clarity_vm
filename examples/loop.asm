@@ -1,3 +1,6 @@
+.global _start
+
+_start:
     xor r0, r0
     mov r1, 10
 loop:

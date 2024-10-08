@@ -1,4 +1,4 @@
 [Project]
-name = "clarity"
+name = "clarityc"
 build_dir = "build"
 make = "src/main.go"

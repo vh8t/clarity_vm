@@ -5,6 +5,8 @@ import (
 	"compiler/src/parser"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 func main() {
@@ -19,8 +21,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	outfile := strings.TrimSuffix(filepath.Base(os.Args[1]), filepath.Ext(os.Args[1]))
+
 	tokens := lexer.Tokenize(contents)
 	bytecode := parser.Parse(tokens)
 
-	os.WriteFile("out.bin", bytecode, 0644)
+	os.WriteFile(outfile+".bin", bytecode, 0644)
 }

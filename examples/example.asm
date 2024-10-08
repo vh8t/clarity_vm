@@ -1,6 +1,3 @@
-; NOT WORKING
-
-.text
 .global _start
 
 _start:

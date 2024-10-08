@@ -28,7 +28,7 @@ class VM {
     static const int HEAP_SIZE = 4096;
 
     VM();
-    void run(const std::vector<Instruction> &program);
+    void run(const std::vector<Instruction> &program, const uint32_t start);
 
   private:
     uint32_t stack[STACK_SIZE];
