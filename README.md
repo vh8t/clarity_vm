@@ -13,14 +13,14 @@ To build the vm with all its tools you can run the following commands in the clo
 ```sh
 make
 cd compiler
-go build -o clarity src/main.go
+go build -o clarityc src/main.go
 ```
 
-This should make a `dist/vm` executable which is the vm and `compiler/clarity` executable which is the compiler for the vm
+This should make a `dist/clarity` executable which is the vm and `compiler/clarityc` executable which is the compiler for the vm
 
 ## Running
 
-To run any `clarity` complient assembly you can run the `clarity` executable with the file as argument, this will produce `out.bin` file which you can then use as argument for the `vm` executable
+To run any `clarity` complient assembly you can run the `clarityc` executable with the file as argument, this will produce `<file>.bin` file which you can then use as argument for the `clarity` executable
 
 ## Assembly
 
