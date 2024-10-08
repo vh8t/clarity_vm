@@ -1,9 +1,11 @@
+#include <csignal>
+#include <cstdio>
 #include <iostream>
 
 #include "debug.h"
 #include "vm.h"
 
-VM::VM() : sp(0) {
+VM::VM(bool debug) : sp(0), debug(debug) {
     for (int i = 0; i < 8; ++i) {
         cpu.registers[i] = 0;
     }
@@ -111,23 +113,32 @@ void VM::execute(const Instruction instr) {
         clear_flag(cpu.flags, ZF);
         clear_flag(cpu.flags, GF);
         clear_flag(cpu.flags, LF);
+        clear_flag(cpu.flags, SF);
 
-        if (reg1 == reg2) {
+        if (reg1 == reg2)
             set_flag(cpu.flags, ZF);
-        } else if (reg1 > reg2) {
+        else if (reg1 > reg2)
             set_flag(cpu.flags, GF);
-        } else {
+        else
             set_flag(cpu.flags, LF);
-        }
+
+        if (reg1 < 0)
+            set_flag(cpu.flags, SF);
         break;
     }
-    case TEST:
-        if ((cpu.registers[instr.operand1] & cpu.registers[instr.operand2]) ==
-            0)
+    case TEST: {
+        int32_t result =
+            cpu.registers[instr.operand1] & cpu.registers[instr.operand2];
+
+        clear_flag(cpu.flags, ZF);
+        clear_flag(cpu.flags, SF);
+
+        if (result == 0)
             set_flag(cpu.flags, ZF);
-        else
-            clear_flag(cpu.flags, ZF);
+        else if (result < 0)
+            set_flag(cpu.flags, SF);
         break;
+    }
 
     case NOP:
         break;
@@ -146,13 +157,18 @@ void VM::run(const std::vector<Instruction> &program, const uint32_t start) {
     running = true;
     pc = start;
 
+    if (debug) {
+        init_term();
+        std::atexit(revert_term);
+        std::signal(SIGINT, sig_revert_term);
+        std::signal(SIGTERM, sig_revert_term);
+    }
+
     while (running) {
-        if (DEBUG) {
-            std::cout << "\n==== VM State ====" << std::endl;
-            print_cpu_state(cpu);
-            print_stack(stack, sp);
-            std::cout << "PC: " << pc << "\n==================" << std::endl;
-            print_instruction(program[pc], pc);
+        if (debug) {
+            clear_term();
+            print_debug(cpu, program[pc], pc, stack, sp);
+            getchar();
         }
 
         execute(program[pc]);

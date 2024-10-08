@@ -4,10 +4,11 @@
 #include "vm.h"
 #include <iostream>
 
-extern bool DEBUG;
-
-void print_instruction(const Instruction &instr, uint32_t pc);
-void print_cpu_state(const CPU &cpu);
-void print_stack(const uint32_t *stack, uint32_t sp);
+void init_term();
+void clear_term();
+void revert_term();
+void sig_revert_term(int signal);
+void print_debug(const CPU &cpu, const Instruction &instr, uint32_t pc,
+                 uint32_t *stack, uint32_t sp);
 
 #endif

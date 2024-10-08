@@ -8,9 +8,10 @@ struct CPU {
     uint32_t flags;
 };
 
-const uint32_t ZF = 1 << 0;
-const uint32_t GF = 1 << 1;
-const uint32_t LF = 1 << 2;
+const uint32_t ZF = 1 << 0; // zero flag
+const uint32_t GF = 1 << 1; // greater flag
+const uint32_t LF = 1 << 2; // less flag
+const uint32_t SF = 1 << 3; // sign flag
 
 void set_flag(uint32_t &flags, uint32_t flag);
 void clear_flag(uint32_t &flags, uint32_t flag);

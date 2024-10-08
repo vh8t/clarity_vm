@@ -27,7 +27,7 @@ class VM {
     static const int STACK_SIZE = 1024;
     static const int HEAP_SIZE = 4096;
 
-    VM();
+    VM(bool debug);
     void run(const std::vector<Instruction> &program, const uint32_t start);
 
   private:
@@ -37,6 +37,7 @@ class VM {
     CPU cpu;
     uint32_t pc;
     bool running;
+    bool debug;
 
     void execute(const Instruction instr);
 };

@@ -1,68 +1,148 @@
 #include "debug.h"
+#include <iomanip>
+#include <termios.h>
+#include <unistd.h>
 
-bool DEBUG = true;
+void init_term() {
+    struct termios tty;
 
-const char *get_opcode_name(OpCode opcode) {
+    tcgetattr(STDIN_FILENO, &tty);
+    tty.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &tty);
+
+    std::cout << "\x1b[?1049h";
+}
+
+void revert_term() {
+    struct termios tty;
+
+    tcgetattr(STDIN_FILENO, &tty);
+    tty.c_lflag |= (ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &tty);
+
+    std::cout << "\x1b[?1049l";
+}
+
+void sig_revert_term(int signal) {
+    revert_term();
+    exit(signal);
+}
+
+void clear_term() { std::cout << "\x1b[2J\x1b[3J\x1b[H"; }
+void set_pos(int x, int y) { std::cout << "\x1b[" << y << ";" << x << "H"; }
+
+const std::string get_opcode_name(OpCode opcode) {
     switch (opcode) {
         // clang-format off
-    case ADD: return "ADD";
-    case SUB: return "SUB";
-    case MUL: return "MUL";
-    case DIV: return "DIV";
-    case MOD: return "MOD";
-    case INC: return "INC";
-    case DEC: return "DEC";
-    case AND: return "AND";
-    case OR: return "OR";
-    case XOR: return "XOR";
-    case NOT: return "NOT";
-    case SHL: return "SHL";
-    case SHR: return "SHR";
-    case MOV: return "MOV";
-    case LOAD: return "LOAD";
-    case STORE: return "STORE";
-    case PUSH: return "PUSH";
-    case POP: return "POP";
-    case JMP: return "JMP";
-    case JZ: return "JZ";
-    case JNZ: return "JNZ";
-    case JG: return "JG";
-    case JL: return "JL";
-    case CALL: return "CALL";
-    case RET: return "RET";
-    case CMP: return "CMP";
-    case TEST: return "TEST";
-    case NOP: return "NOP";
-    case HLT: return "HLT";
-    default: return "UNKNOWN";
+    case ADD: return "add";
+    case SUB: return "sub";
+    case MUL: return "mul";
+    case DIV: return "div";
+    case MOD: return "mod";
+    case INC: return "inc";
+    case DEC: return "dec";
+    case AND: return "and";
+    case OR: return "or";
+    case XOR: return "xor";
+    case NOT: return "not";
+    case SHL: return "shl";
+    case SHR: return "shr";
+    case MOV: return "mov";
+    case LOAD: return "load";
+    case STORE: return "store";
+    case PUSH: return "push";
+    case POP: return "pop";
+    case JMP: return "jmp";
+    case JZ: return "jz";
+    case JNZ: return "jnz";
+    case JG: return "jg";
+    case JL: return "jl";
+    case CALL: return "call";
+    case RET: return "ret";
+    case CMP: return "cmp";
+    case TEST: return "test";
+    case NOP: return "nop";
+    case HLT: return "hlt";
+    default: return "unknown";
         // clang-format on
     }
 }
 
-void print_instruction(const Instruction &instr, uint32_t pc) {
-    if (!DEBUG)
-        return;
-    std::cout << "PC: " << pc << " | "
-              << "Executing: " << get_opcode_name(instr.opcode) << " "
-              << instr.operand1 << ", " << instr.operand2 << std::endl;
+void print_registers(const CPU &cpu, int x, int y) {
+    set_pos(x, y);
+    std::cout << "┏━ Registers ━━┓";
+    for (int i = 0; i < 8; i++) {
+        set_pos(x, y + i + 1);
+        std::cout << "┃ r" << i << ": " << std::setw(8) << cpu.registers[i]
+                  << " ┃";
+    }
+    set_pos(x, y + 9);
+    std::cout << "┗━━━━━━━━━━━━━━┛";
 }
 
-void print_cpu_state(const CPU &cpu) {
-    if (!DEBUG)
-        return;
-    std::cout << "Registers: ";
-    for (int i = 0; i < 8; ++i) {
-        std::cout << "r" << i << "=" << cpu.registers[i] << " ";
-    }
-    std::cout << "\nFlags: " << cpu.flags << std::endl;
+void print_flags(const CPU &cpu, int x, int y) {
+    set_pos(x, y);
+    std::cout << "┏━ Flags ━━━━━━┓";
+    set_pos(x, y + 1);
+    std::cout << "┃ ZF: " << (is_flag_set(cpu.flags, ZF) ? "1" : "0")
+              << "        ┃";
+    set_pos(x, y + 2);
+    std::cout << "┃ GF: " << (is_flag_set(cpu.flags, GF) ? "1" : "0")
+              << "        ┃";
+    set_pos(x, y + 3);
+    std::cout << "┃ LF: " << (is_flag_set(cpu.flags, LF) ? "1" : "0")
+              << "        ┃";
+    set_pos(x, y + 4);
+    std::cout << "┃ SF: " << (is_flag_set(cpu.flags, SF) ? "1" : "0")
+              << "        ┃";
+    set_pos(x, y + 5);
+    std::cout << "┗━━━━━━━━━━━━━━┛";
 }
 
-void print_stack(const uint32_t *stack, uint32_t sp) {
-    if (!DEBUG)
-        return;
-    std::cout << "Stack (SP=" << sp << "): ";
-    for (int i = sp - 1; i >= 0; --i) {
-        std::cout << stack[i] << " ";
+void print_instruction(const Instruction &instr, uint32_t pc, int x, int y) {
+    set_pos(x, y);
+    std::cout << "┏━ Instruction ━━━┓";
+    set_pos(x, y + 1);
+    std::cout << "┃ PC: " << std::left << std::setw(5) << pc << "       ┃";
+    set_pos(x, y + 2);
+    std::cout << "┃ " << std::left << std::setw(15)
+              << (get_opcode_name(instr.opcode) + " " +
+                  std::to_string(instr.operand1) + ", " +
+                  std::to_string(instr.operand2))
+              << " ┃";
+    set_pos(x, y + 3);
+    std::cout << "┗━━━━━━━━━━━━━━━━━┛";
+}
+
+void print_stack(const uint32_t *stack, uint32_t sp, int x, int y) {
+    int offset = 1;
+    int limit = 0;
+
+    set_pos(x, y);
+    std::cout << "┏━ Stack ━━━━━━━━━┓";
+    if (sp >= 9) {
+        limit = sp - 15;
     }
-    std::cout << std::endl;
+    for (int i = sp; i > limit; i--) {
+        set_pos(x, y + offset);
+        std::cout << "┃ " << std::setw(15) << stack[i] << " ┃";
+        offset++;
+    }
+    if (limit == 0) {
+        for (size_t i = 0; i < 15 - sp; i++) {
+            set_pos(x, y + offset);
+            std::cout << "┃                 ┃";
+            offset++;
+        }
+    }
+    set_pos(x, y + offset);
+    std::cout << "┗━━━━━━━━━━━━━━━━━┛";
+}
+
+void print_debug(const CPU &cpu, const Instruction &instr, uint32_t pc,
+                 uint32_t *stack, uint32_t sp) {
+    print_instruction(instr, pc, 1, 1);
+    print_stack(stack, sp, 1, 5);
+    print_registers(cpu, 21, 1);
+    print_flags(cpu, 21, 11);
 }
