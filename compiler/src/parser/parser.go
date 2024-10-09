@@ -47,7 +47,6 @@ type Ref struct {
 func Parse(tokens []lexer.Token) (bytecode []byte) {
 	var err bool
 	var bcOffset, pcOffset int
-	var loops int
 
 	directives := make(map[string]string)
 	unknown := make(map[int]string)
@@ -62,14 +61,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 			switch strings.ToLower(directive) {
 			case "global":
 				if i+1 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "global directive missing label\n")
-					err = false
+					fmt.Fprintf(os.Stderr, "%d:%d global directive missing label\n", token.Row, token.Col)
+					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.IDENT {
-					fmt.Fprintf(os.Stderr, "invalid argument for global directive\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid argument for global directive\n", tokens[i+1].Row, tokens[i+1].Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				directives[directive] = tokens[i+1].Value
@@ -77,8 +77,9 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 			}
 		case lexer.LABEL:
 			if _, ok := labels[token.Value]; ok {
-				fmt.Fprintf(os.Stderr, "duplicate label: `%s`\n", token.Value)
+				fmt.Fprintf(os.Stderr, "%d:%d duplicate label: `%s`\n", token.Row, token.Col, token.Value)
 				err = true
+				i = len(tokens)
 				continue
 			} else {
 				labels[token.Value] = pcOffset
@@ -88,14 +89,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 			switch strings.ToLower(token.Value) {
 			case "add":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for add instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for add instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for add instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for add instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, ADD, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
@@ -103,14 +105,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "sub":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for sub instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for sub instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for sub instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for sub instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, SUB, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
@@ -118,14 +121,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "mul":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for mul instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for mul instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for mul instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for mul instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, MUL, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
@@ -133,14 +137,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "div":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for div instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for div instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for div instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for div instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, DIV, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
@@ -148,14 +153,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "mod":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for mod instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for mod instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for mod instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for mod instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, MOD, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
@@ -163,14 +169,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "inc":
 				if i+1 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for inc instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for inc instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for inc instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for inc instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, INC, regToByte(tokens[i+1].Value))
@@ -178,14 +185,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 2
 			case "dec":
 				if i+1 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for dec instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for dec instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for dec instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for dec instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, DEC, regToByte(tokens[i+1].Value))
@@ -193,14 +201,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 2
 			case "and":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for and instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for and instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for and instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for and instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, AND, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
@@ -208,14 +217,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "or":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for or instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for or instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for or instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for or instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, OR, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
@@ -223,14 +233,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "xor":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for xor instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for xor instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for xor instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for xor instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, XOR, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
@@ -238,14 +249,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "not":
 				if i+1 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for not instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for not instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for not instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for not instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, NOT, regToByte(tokens[i+1].Value))
@@ -253,14 +265,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 2
 			case "shl":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for shl instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for shl instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.IMM {
-					fmt.Fprintf(os.Stderr, "invalid arguments for shl instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for shl instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				n := strToInt32(tokens[i+3].Value)
@@ -271,14 +284,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "shr":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for shr instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for shr instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.IMM {
-					fmt.Fprintf(os.Stderr, "invalid arguments for shr instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for shr instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				n := strToInt32(tokens[i+3].Value)
@@ -289,14 +303,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "mov":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for mov instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for mov instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.IMM {
-					fmt.Fprintf(os.Stderr, "invalid arguments for mov instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for mov instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				n := strToInt32(tokens[i+3].Value)
@@ -307,13 +322,13 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "load":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for load instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for load instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.IMM {
-					fmt.Fprintf(os.Stderr, "invalid arguments for load instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for load instruction\n", token.Row, token.Col)
 					err = true
 				}
 				n := strToInt32(tokens[i+3].Value)
@@ -324,14 +339,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "store":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for store instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for store instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.IMM {
-					fmt.Fprintf(os.Stderr, "invalid arguments for store instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for store instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				n := strToInt32(tokens[i+3].Value)
@@ -342,14 +358,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "push":
 				if i+1 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for push instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for push instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for push instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for push instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, PUSH, regToByte(tokens[i+1].Value))
@@ -357,14 +374,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 2
 			case "pop":
 				if i+1 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for pop instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for pop instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for pop instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for pop instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, POP, regToByte(tokens[i+1].Value))
@@ -372,14 +390,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 2
 			case "jmp":
 				if i+1 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for jmp instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for jmp instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.IDENT {
-					fmt.Fprintf(os.Stderr, "invalid arguments for jmp instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for jmp instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				n, ok := labels[tokens[i+1].Value]
@@ -396,14 +415,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 2
 			case "jz":
 				if i+1 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for jz instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for jz instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.IDENT {
-					fmt.Fprintf(os.Stderr, "invalid arguments for jz instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for jz instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				n, ok := labels[tokens[i+1].Value]
@@ -420,14 +440,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 2
 			case "jnz":
 				if i+1 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for jnz instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for jnz instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.IDENT {
-					fmt.Fprintf(os.Stderr, "invalid arguments for jnz instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for jnz instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				n, ok := labels[tokens[i+1].Value]
@@ -444,14 +465,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 2
 			case "jg":
 				if i+1 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for jg instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for jg instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.IDENT {
-					fmt.Fprintf(os.Stderr, "invalid arguments for jg instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for jg instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				n, ok := labels[tokens[i+1].Value]
@@ -468,14 +490,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 2
 			case "jl":
 				if i+1 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for jl instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for jl instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.IDENT {
-					fmt.Fprintf(os.Stderr, "invalid arguments for jl instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for jl instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				n, ok := labels[tokens[i+1].Value]
@@ -492,14 +515,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 2
 			case "call":
 				if i+1 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for call instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for call instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.IDENT {
-					fmt.Fprintf(os.Stderr, "invalid arguments for call instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for call instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				n, ok := labels[tokens[i+1].Value]
@@ -520,14 +544,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i++
 			case "cmp":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for cmp instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for cmp instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for cmp instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for cmp instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, CMP, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
@@ -535,14 +560,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				i += 4
 			case "test":
 				if i+3 >= len(tokens) {
-					fmt.Fprintf(os.Stderr, "missing arguments for test instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for test instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
 				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.REG {
-					fmt.Fprintf(os.Stderr, "invalid arguments for test instruction\n")
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for test instruction\n", token.Row, token.Col)
 					err = true
+					i = len(tokens)
 					continue
 				}
 				bytecode = append(bytecode, TEST, regToByte(tokens[i+1].Value), regToByte(tokens[i+3].Value))
@@ -561,15 +587,11 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 		}
 
 		if i < len(tokens) && tokens[i].Kind == lexer.NEWLINE {
-			loops = 0
 			i++
 		} else {
-			if loops > 2 {
-				break
-			}
-			loops++
 			fmt.Fprintf(os.Stderr, "missing new line after instruction\n")
 			err = true
+			i = len(tokens)
 			continue
 		}
 	}

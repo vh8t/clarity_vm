@@ -39,7 +39,5 @@ int main(int argc, char **argv) {
     std::vector<Instruction> prog = bytes_to_prog(file_data);
 
     VM vm(debug);
-    vm.run(prog, start);
-
-    return 0;
+    return vm.run(prog, start);
 }

@@ -1,6 +1,5 @@
 #include <csignal>
-#include <cstdio>
-#include <iostream>
+#include <regex>
 
 #include "debug.h"
 #include "vm.h"
@@ -153,24 +152,53 @@ void VM::execute(const Instruction instr) {
     pc++;
 }
 
-void VM::run(const std::vector<Instruction> &program, const uint32_t start) {
+int VM::run(const std::vector<Instruction> &program, const uint32_t start) {
+    std::vector<int> breakpoints;
     running = true;
     pc = start;
+    std::regex re("^b\\s+(\\d+)$");
+
+    bool d_running = false;
 
     if (debug) {
         init_term();
         std::atexit(revert_term);
         std::signal(SIGINT, sig_revert_term);
         std::signal(SIGTERM, sig_revert_term);
+        clear_term();
+        print_debug(cpu, program[pc], pc, stack, sp);
     }
 
     while (running) {
-        if (debug) {
+        if (debug && !d_running) {
+            std::string line;
+            std::getline(std::cin, line);
+
+            if (line == "s") {
+                execute(program[pc]);
+            } else if (line == "r") {
+                d_running = true;
+            } else if (line == "q") {
+                break;
+            } else if (line.rfind("b ", 0) == 0) {
+                std::smatch match;
+                if (std::regex_match(line, match, re)) {
+                    breakpoints.push_back(std::stoi(match[1]));
+                }
+            }
             clear_term();
             print_debug(cpu, program[pc], pc, stack, sp);
-            getchar();
+        } else if (debug && d_running) {
+            execute(program[pc]);
+            clear_term();
+            print_debug(cpu, program[pc], pc, stack, sp);
+            if (std::find(breakpoints.begin(), breakpoints.end(), pc) !=
+                breakpoints.end())
+                d_running = false;
+        } else {
+            execute(program[pc]);
         }
-
-        execute(program[pc]);
     }
+
+    return cpu.registers[0];
 }

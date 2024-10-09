@@ -1,27 +1,8 @@
 #include "debug.h"
 #include <iomanip>
-#include <termios.h>
-#include <unistd.h>
 
-void init_term() {
-    struct termios tty;
-
-    tcgetattr(STDIN_FILENO, &tty);
-    tty.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &tty);
-
-    std::cout << "\x1b[?1049h";
-}
-
-void revert_term() {
-    struct termios tty;
-
-    tcgetattr(STDIN_FILENO, &tty);
-    tty.c_lflag |= (ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &tty);
-
-    std::cout << "\x1b[?1049l";
-}
+void init_term() { std::cout << "\x1b[?1049h"; }
+void revert_term() { std::cout << "\x1b[?1049l"; }
 
 void sig_revert_term(int signal) {
     revert_term();
@@ -139,10 +120,28 @@ void print_stack(const uint32_t *stack, uint32_t sp, int x, int y) {
     std::cout << "┗━━━━━━━━━━━━━━━━━┛";
 }
 
+void print_help(int x, int y) {
+    set_pos(x, y);
+    std::cout << "┏━ Help ━━━━━━━━━━━━━━━┓";
+    set_pos(x, y + 1);
+    std::cout << "┃ b <int> - breakpoint ┃";
+    set_pos(x, y + 2);
+    std::cout << "┃ s - step             ┃";
+    set_pos(x, y + 3);
+    std::cout << "┃ r - run              ┃";
+    set_pos(x, y + 4);
+    std::cout << "┃ q - quit             ┃";
+    set_pos(x, y + 5);
+    std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━┛";
+}
+
 void print_debug(const CPU &cpu, const Instruction &instr, uint32_t pc,
                  uint32_t *stack, uint32_t sp) {
     print_instruction(instr, pc, 1, 1);
     print_stack(stack, sp, 1, 5);
     print_registers(cpu, 21, 1);
     print_flags(cpu, 21, 11);
+    print_help(38, 1);
+    set_pos(1, 23);
+    std::cout << "clarity: ";
 }
