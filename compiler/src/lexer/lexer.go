@@ -14,14 +14,18 @@ type Token struct {
 }
 
 const (
-	DIRECTIVE TokenKind = "DIRECTIVE"
-	NEWLINE   TokenKind = "NEWLINE"
-	LABEL     TokenKind = "LABEL"
-	INSTR     TokenKind = "INSTR"
-	IDENT     TokenKind = "IDENT"
-	COMMA     TokenKind = "COMMA"
-	REG       TokenKind = "REG"
-	IMM       TokenKind = "IMM"
+	DEFINITION TokenKind = "DEFINITION"
+	DIRECTIVE  TokenKind = "DIRECTIVE"
+	LBRACKET   TokenKind = "LBRACKET"
+	RBRACKET   TokenKind = "RBRACKET"
+	NEWLINE    TokenKind = "NEWLINE"
+	STRING     TokenKind = "STRING"
+	LABEL      TokenKind = "LABEL"
+	INSTR      TokenKind = "INSTR"
+	IDENT      TokenKind = "IDENT"
+	COMMA      TokenKind = "COMMA"
+	REG        TokenKind = "REG"
+	IMM        TokenKind = "IMM"
 )
 
 func Tokenize(source []byte) (tokens []Token) {
@@ -65,6 +69,13 @@ func Tokenize(source []byte) (tokens []Token) {
 				tokens = append(tokens, Token{
 					Value: buf,
 					Kind:  REG,
+					Row:   sRow,
+					Col:   sCol,
+				})
+			} else if isDefinition(buf) {
+				tokens = append(tokens, Token{
+					Value: buf,
+					Kind:  DEFINITION,
 					Row:   sRow,
 					Col:   sCol,
 				})
@@ -141,6 +152,24 @@ func Tokenize(source []byte) (tokens []Token) {
 			})
 			i++
 			col++
+		case char == '[':
+			tokens = append(tokens, Token{
+				Value: "",
+				Kind:  LBRACKET,
+				Row:   sRow,
+				Col:   sCol,
+			})
+			i++
+			col++
+		case char == ']':
+			tokens = append(tokens, Token{
+				Value: "",
+				Kind:  RBRACKET,
+				Row:   sRow,
+				Col:   sCol,
+			})
+			i++
+			col++
 		case char == '\n':
 			tokens = append(tokens, Token{
 				Value: "",
@@ -160,6 +189,49 @@ func Tokenize(source []byte) (tokens []Token) {
 				}
 				char = source[i]
 			}
+		case char == '"':
+			i++
+			col++
+			for i < len(source) {
+				ch := source[i]
+				i++
+				col++
+
+				if ch == '"' || ch == '\n' {
+					break
+				}
+
+				if ch == '\\' && i < len(source) {
+					nextCh := source[i]
+					i++
+					col++
+					switch nextCh {
+					case '"':
+						buf += "\""
+					case '\\':
+						buf += "\\"
+					case 'n':
+						buf += "\n"
+					case 't':
+						buf += "\t"
+					case 'r':
+						buf += "\r"
+					case 'b':
+						buf += "\b"
+					default:
+						buf += string(nextCh)
+					}
+				} else {
+					buf += string(ch)
+				}
+			}
+
+			tokens = append(tokens, Token{
+				Value: buf,
+				Kind:  STRING,
+				Row:   sRow,
+				Col:   sCol,
+			})
 		case char == ' ' || char == '\t' || char == '\r':
 			i++
 			col++

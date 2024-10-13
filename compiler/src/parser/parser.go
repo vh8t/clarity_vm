@@ -21,6 +21,10 @@ const (
 	NOT
 	SHL
 	SHR
+	MOV_ADDR
+	MOV_REG
+	MOV_FROM_ADDR
+	MOV_FROM_REG
 	MOV
 	LOAD
 	STORE
@@ -39,6 +43,9 @@ const (
 	HLT
 )
 
+var MAJOR byte = 1
+var MINOR byte = 1
+
 type Ref struct {
 	Label  string
 	Offset int
@@ -47,10 +54,18 @@ type Ref struct {
 func Parse(tokens []lexer.Token) (bytecode []byte) {
 	var err bool
 	var bcOffset, pcOffset int
+	var dataOffset int
 
 	directives := make(map[string]string)
 	unknown := make(map[int]string)
 	labels := make(map[string]int)
+
+	unknownDefinition := make(map[int]string)
+	definitions := make(map[string]int)
+
+	data := []byte{}
+
+	var section string
 
 	for i := 0; i < len(tokens); {
 		token := tokens[i]
@@ -74,6 +89,29 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				}
 				directives[directive] = tokens[i+1].Value
 				i += 2
+			case "section":
+				if i+1 >= len(tokens) {
+					fmt.Fprintf(os.Stderr, "%d:%d section directive missing lable\n", token.Row, token.Col)
+					err = true
+					i = len(tokens)
+					continue
+				}
+				if tokens[i+1].Kind != lexer.IDENT {
+					fmt.Fprintf(os.Stderr, "%d:%d invalid argument for section directive\n", tokens[i+1].Row, tokens[i+1].Col)
+					err = true
+					i = len(tokens)
+					continue
+				}
+				switch tokens[i+1].Value {
+				case "text", "data":
+				default:
+					fmt.Fprintf(os.Stderr, "%d:%d unknown section %s\n", tokens[i+1].Row, tokens[i+1].Col, tokens[i+1].Value)
+					err = true
+					i = len(tokens)
+					continue
+				}
+				section = tokens[i+1].Value
+				i += 2
 			}
 		case lexer.LABEL:
 			if _, ok := labels[token.Value]; ok {
@@ -85,7 +123,143 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 				labels[token.Value] = pcOffset
 			}
 			i++
+		case lexer.DEFINITION:
+			if section != "data" {
+				fmt.Fprintf(os.Stderr, "%d:%d illegal definition in section %s\n", token.Row, token.Col, section)
+				err = true
+				i = len(tokens)
+				continue
+			}
+			if i+2 >= len(tokens) {
+				fmt.Fprintf(os.Stderr, "%d:%d missing arguments for definition\n", token.Row, token.Col)
+				err = true
+				i = len(tokens)
+				continue
+			}
+			if tokens[i+1].Kind != lexer.IDENT {
+				fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for definition\n", token.Row, token.Col)
+				err = true
+				i = len(tokens)
+				continue
+			}
+			name := tokens[i+1].Value
+			switch token.Value {
+			case "byte":
+				if tokens[i+2].Kind != lexer.IMM {
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for definition\n", token.Row, token.Col)
+					err = true
+					i = len(tokens)
+					continue
+				}
+				n := strToInt32(tokens[i+2].Value)
+				if 0 > n || n > 255 {
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for definition\n", token.Row, token.Col)
+					err = true
+					i = len(tokens)
+					continue
+				}
+				data = append(data, byte(n))
+				if _, ok := definitions[name]; ok {
+					fmt.Fprintf(os.Stderr, "%d:%d duplicate definition: `%s`\n", token.Row, token.Col, token.Value)
+					err = true
+					i = len(tokens)
+					continue
+				} else {
+					definitions[name] = dataOffset
+				}
+				dataOffset++
+				i += 3
+			case "bytes":
+				var bytes []byte
+				if tokens[i+2].Kind != lexer.IMM {
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for definition\n", token.Row, token.Col)
+					err = true
+					i = len(tokens)
+					continue
+				}
+				n := strToInt32(tokens[i+2].Value)
+				if 0 > n || n > 255 {
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for definition\n", token.Row, token.Col)
+					err = true
+					i = len(tokens)
+					continue
+				}
+				bytes = append(bytes, byte(n))
+				i += 3
+				for i+1 < len(tokens) && tokens[i].Kind == lexer.COMMA {
+					if tokens[i+1].Kind != lexer.IMM {
+						fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for definition\n", token.Row, token.Col)
+						err = true
+						i = len(tokens)
+						continue
+					}
+					n := strToInt32(tokens[i+1].Value)
+					if 0 > n || n > 255 {
+						fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for definition\n", token.Row, token.Col)
+						err = true
+						i = len(tokens)
+						continue
+					}
+					i += 2
+					bytes = append(bytes, byte(n))
+				}
+				data = append(data, bytes...)
+				if _, ok := definitions[name]; ok {
+					fmt.Fprintf(os.Stderr, "%d:%d duplicate definition: `%s`\n", token.Row, token.Col, token.Value)
+					err = true
+					i = len(tokens)
+					continue
+				} else {
+					definitions[name] = dataOffset
+				}
+				dataOffset += len(bytes)
+			case "string":
+				if tokens[i+2].Kind != lexer.STRING {
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for definition\n", token.Row, token.Col)
+					err = true
+					i = len(tokens)
+					continue
+				}
+				bytes := []byte(tokens[i+2].Value)
+				bytes = append(bytes, 0)
+				data = append(data, bytes...)
+				if _, ok := definitions[name]; ok {
+					fmt.Fprintf(os.Stderr, "%d:%d duplicate definition: `%s`\n", token.Row, token.Col, token.Value)
+					err = true
+					i = len(tokens)
+					continue
+				} else {
+					definitions[name] = dataOffset
+				}
+				dataOffset += len(bytes)
+				i += 3
+			case "int":
+				if tokens[i+2].Kind != lexer.IMM {
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for definition\n", token.Row, token.Col)
+					err = true
+					i = len(tokens)
+					continue
+				}
+				bytes := int32ToBytes(strToInt32(tokens[i+2].Value))
+				data = append(data, bytes...)
+				if _, ok := definitions[name]; ok {
+					fmt.Fprintf(os.Stderr, "%d:%d duplicate definition: `%s`\n", token.Row, token.Col, token.Value)
+					err = true
+					i = len(tokens)
+					continue
+				} else {
+					definitions[name] = dataOffset
+				}
+				dataOffset += len(bytes)
+				i += 3
+			}
 		case lexer.INSTR:
+			if section != "text" {
+				fmt.Fprintf(os.Stderr, "%d:%d illegal instruction in section %s\n", token.Row, token.Col, section)
+				err = true
+				i = len(tokens)
+				continue
+			}
 			switch strings.ToLower(token.Value) {
 			case "add":
 				if i+3 >= len(tokens) {
@@ -308,18 +482,75 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					i = len(tokens)
 					continue
 				}
-				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA || tokens[i+3].Kind != lexer.IMM {
+				if tokens[i+1].Kind != lexer.REG || tokens[i+2].Kind != lexer.COMMA {
 					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for mov instruction\n", token.Row, token.Col)
 					err = true
 					i = len(tokens)
 					continue
 				}
-				n := strToInt32(tokens[i+3].Value)
-				b := int32ToBytes(n)
-				bytecode = append(bytecode, MOV, regToByte(tokens[i+1].Value))
-				bytecode = append(bytecode, b...)
-				bcOffset += 6
-				i += 4
+				switch tokens[i+3].Kind {
+				case lexer.IMM:
+					n := strToInt32(tokens[i+3].Value)
+					b := int32ToBytes(n)
+					bytecode = append(bytecode, MOV, regToByte(tokens[i+1].Value))
+					bytecode = append(bytecode, b...)
+					bcOffset += 6
+					i += 4
+				case lexer.REG:
+					bytecode = append(bytecode, MOV_REG, regToByte(tokens[i+1].Value), regToByte(tokens[i+2].Value))
+					bcOffset += 3
+					i += 4
+				case lexer.IDENT:
+					if addr, ok := definitions[tokens[i+3].Value]; ok {
+						b := int32ToBytes(int32(addr))
+						bytecode = append(bytecode, MOV_ADDR, regToByte(tokens[i+1].Value))
+						bytecode = append(bytecode, b...)
+					} else {
+						bytecode = append(bytecode, MOV_ADDR, regToByte(tokens[i+1].Value), 0, 0, 0, 0)
+						unknownDefinition[bcOffset+2] = tokens[i+3].Value
+					}
+					bcOffset += 6
+					i += 4
+				case lexer.LBRACKET:
+					if i+5 >= len(tokens) {
+						fmt.Fprintf(os.Stderr, "%d:%d missing arguments for mov instruction\n", token.Row, token.Col)
+						err = true
+						i = len(tokens)
+						continue
+					}
+					if tokens[i+5].Kind != lexer.RBRACKET {
+						fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for mov instruction\n", token.Row, token.Col)
+						err = true
+						i = len(tokens)
+						continue
+					}
+					switch tokens[i+4].Kind {
+					case lexer.REG:
+						bytecode = append(bytecode, MOV_FROM_REG, regToByte(tokens[i+1].Value), regToByte(tokens[i+4].Value))
+						bcOffset += 3
+					case lexer.IDENT:
+						if addr, ok := definitions[tokens[i+3].Value]; ok {
+							b := int32ToBytes(int32(addr))
+							bytecode = append(bytecode, MOV_FROM_ADDR, regToByte(tokens[i+1].Value))
+							bytecode = append(bytecode, b...)
+						} else {
+							bytecode = append(bytecode, MOV_FROM_ADDR, regToByte(tokens[i+1].Value), 0, 0, 0, 0)
+							unknownDefinition[bcOffset+2] = tokens[i+3].Value
+						}
+						bcOffset += 6
+					default:
+						fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for mov instruction\n", token.Row, token.Col)
+						err = true
+						i = len(tokens)
+						continue
+					}
+					i += 6
+				default:
+					fmt.Fprintf(os.Stderr, "%d:%d invalid arguments for mov instruction\n", token.Row, token.Col)
+					err = true
+					i = len(tokens)
+					continue
+				}
 			case "load":
 				if i+3 >= len(tokens) {
 					fmt.Fprintf(os.Stderr, "%d:%d missing arguments for load instruction\n", token.Row, token.Col)
@@ -609,6 +840,16 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 		}
 	}
 
+	for ref, label := range unknownDefinition {
+		if addr, ok := definitions[label]; ok {
+			b := int32ToBytes(int32(addr))
+			bytecode[ref] = b[0]
+			bytecode[ref+1] = b[1]
+			bytecode[ref+2] = b[2]
+			bytecode[ref+3] = b[3]
+		}
+	}
+
 	if err {
 		os.Exit(1)
 	}
@@ -620,10 +861,13 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 		}
 	}
 
-	b := int32ToBytes(int32(start))
+	pcStart := int32ToBytes(int32(start))
+	bcStart := int32ToBytes(int32(len(data)))
 
-	header := []byte{'C', 'L', 'R', 'T'}
-	header = append(header, b...)
+	header := []byte{0xc1, 0xa0, MAJOR, MINOR}
+	header = append(header, bcStart...)
+	header = append(header, pcStart...)
+	header = append(header, data...)
 	bytecode = append(header, bytecode...)
 
 	return

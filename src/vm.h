@@ -5,11 +5,15 @@
 #include <cstdint>
 #include <vector>
 
+#define MAJOR 1
+#define MINOR 1
+
 // clang-format off
 enum OpCode {
     ADD, SUB, MUL, DIV, MOD, INC, DEC,
     AND, OR, XOR, NOT, SHL, SHR,
-    MOV, LOAD, STORE, PUSH, POP,
+    MOV_ADDR, MOV_REG, MOV_FROM_ADDR, MOV_FROM_REG, MOV,
+    LOAD, STORE, PUSH, POP,
     JMP, JZ, JNZ, JG, JL, CALL, RET,
     CMP, TEST,
     NOP, HLT,
@@ -27,10 +31,11 @@ class VM {
     static const int STACK_SIZE = 1024;
     static const int HEAP_SIZE = 4096;
 
-    VM(bool debug);
+    VM(bool debug, const std::vector<uint8_t> &data);
     int run(const std::vector<Instruction> &program, const uint32_t start);
 
   private:
+    std::vector<uint8_t> data;
     uint32_t stack[STACK_SIZE];
     uint32_t heap[HEAP_SIZE];
     uint32_t sp;

@@ -4,7 +4,8 @@
 #include "debug.h"
 #include "vm.h"
 
-VM::VM(bool debug) : sp(0), debug(debug) {
+VM::VM(bool debug, const std::vector<uint8_t> &data)
+    : data(data), sp(0), debug(debug) {
     for (int i = 0; i < 8; ++i) {
         cpu.registers[i] = 0;
     }
@@ -54,6 +55,18 @@ void VM::execute(const Instruction instr) {
         cpu.registers[instr.operand1] >>= instr.operand2;
         break;
 
+    case MOV_ADDR:
+        cpu.registers[instr.operand1] = instr.operand2;
+        break;
+    case MOV_REG:
+        cpu.registers[instr.operand1] = cpu.registers[instr.operand2];
+        break;
+    case MOV_FROM_REG:
+        cpu.registers[instr.operand1] = data[cpu.registers[instr.operand2]];
+        break;
+    case MOV_FROM_ADDR:
+        cpu.registers[instr.operand1] = data[instr.operand2];
+        break;
     case MOV:
         cpu.registers[instr.operand1] = instr.operand2;
         break;

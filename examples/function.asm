@@ -1,4 +1,5 @@
-.global _start
+.section text
+    .global _start
 
 loop:
     xor r2, r2

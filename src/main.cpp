@@ -35,9 +35,22 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    uint32_t start = bytes_to_uint32(file_data, 4);
-    std::vector<Instruction> prog = bytes_to_prog(file_data);
+    if (file_data[2] != MAJOR) {
+        std::cerr << "Incompatible major version, file=" << file_data[2]
+                  << " vm=" << MAJOR << std::endl;
+        return 1;
+    }
 
-    VM vm(debug);
+    if (file_data[3] > MINOR) {
+        std::cerr << "Incompatible minor version, file=" << file_data[3]
+                  << " vm=" << MINOR << std::endl;
+        return 1;
+    }
+
+    uint32_t start = bytes_to_uint32(file_data, 8);
+    std::vector<Instruction> prog = bytes_to_prog(file_data);
+    std::vector<uint8_t> data = bytes_to_data(file_data);
+
+    VM vm(debug, data);
     return vm.run(prog, start);
 }

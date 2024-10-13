@@ -28,7 +28,12 @@ const std::string get_opcode_name(OpCode opcode) {
     case NOT: return "not";
     case SHL: return "shl";
     case SHR: return "shr";
-    case MOV: return "mov";
+    case MOV_ADDR:
+    case MOV_REG:
+    case MOV_FROM_ADDR:
+    case MOV_FROM_REG:
+    case MOV: 
+        return "mov";
     case LOAD: return "load";
     case STORE: return "store";
     case PUSH: return "push";

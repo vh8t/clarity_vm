@@ -1,8 +1,7 @@
 #include "loader.h"
 
 bool check_header(std::vector<uint8_t> bytes) {
-    if (bytes[0] == 'C' && bytes[1] == 'L' && bytes[2] == 'R' &&
-        bytes[3] == 'T')
+    if (bytes[0] == 0xc1 && bytes[1] == 0xa0)
         return true;
     return false;
 }
@@ -41,10 +40,22 @@ uint32_t bytes_to_uint32(const std::vector<uint8_t> &bytes, int offset) {
                                  (bytes[offset + 3] << 24));
 }
 
+std::vector<uint8_t> bytes_to_data(std::vector<uint8_t> bytes) {
+    std::vector<uint8_t> data;
+    size_t end = bytes_to_uint32(bytes, 4);
+
+    for (size_t i = 12; i < end + 12; i++) {
+        data.push_back(bytes[i]);
+    }
+
+    return data;
+}
+
 std::vector<Instruction> bytes_to_prog(std::vector<uint8_t> bytes) {
     std::vector<Instruction> prog;
+    size_t start = bytes_to_uint32(bytes, 4);
 
-    for (size_t i = 8; i < bytes.size(); i++) {
+    for (size_t i = start + 12; i < bytes.size(); i++) {
         uint8_t opcode = bytes[i];
         Instruction instr;
         switch (opcode) {
@@ -62,6 +73,10 @@ std::vector<Instruction> bytes_to_prog(std::vector<uint8_t> bytes) {
         case NOT:   instr = {NOT, bytes[i + 1], 0}; i++; break;
         case SHL:   instr = {SHL, bytes[i + 1], bytes_to_uint32(bytes, i + 2)}; i += 5; break;
         case SHR:   instr = {SHR, bytes[i + 1], bytes_to_uint32(bytes, i + 2)}; i += 5; break;
+        case MOV_ADDR: instr = {MOV_ADDR, bytes[i + 1], bytes_to_uint32(bytes, i + 2)}; i += 5; break;
+        case MOV_REG: instr = {MOV_REG, bytes[i + 1], bytes[i + 2]}; i += 2; break;
+        case MOV_FROM_ADDR: instr = {MOV_FROM_ADDR, bytes[i + 1], bytes_to_uint32(bytes, i + 2)}; i += 5; break;
+        case MOV_FROM_REG: instr = {MOV_FROM_REG, bytes[i + 1], bytes[i + 2]}; i += 2; break;
         case MOV:   instr = {MOV, bytes[i + 1], bytes_to_uint32(bytes, i + 2)}; i += 5; break;
         case LOAD:  instr = {LOAD, bytes[i + 1], bytes_to_uint32(bytes, i + 2)}; i += 5; break;
         case STORE: instr = {STORE, bytes[i + 1], bytes_to_uint32(bytes, i + 2)}; i += 5; break;

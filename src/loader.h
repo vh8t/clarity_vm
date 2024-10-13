@@ -7,5 +7,6 @@
 std::vector<uint8_t> read_file(const std::string &file_name);
 std::vector<Instruction> bytes_to_prog(std::vector<uint8_t> bytes);
 uint32_t bytes_to_uint32(const std::vector<uint8_t> &bytes, int offset);
+std::vector<uint8_t> bytes_to_data(std::vector<uint8_t> bytes);
 
 #endif

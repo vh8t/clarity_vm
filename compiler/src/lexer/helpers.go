@@ -20,6 +20,19 @@ func isInstruction(s string) bool {
 	return false
 }
 
+func isDefinition(s string) bool {
+	defs := []string{
+		"byte", "bytes", "string",
+	}
+
+	for _, i := range defs {
+		if i == strings.ToLower(s) {
+			return true
+		}
+	}
+	return false
+}
+
 func isRegister(s string) bool {
 	if len(s) != 2 {
 		return false

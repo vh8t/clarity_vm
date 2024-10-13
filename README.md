@@ -46,7 +46,7 @@ To run any `clarity` complient assembly you can run the `clarityc` executable wi
 - `shl <reg>, <imm>` -- shift left value in `reg` by `imm` bits
 - `shr <reg>, <imm>` -- shift right value in `reg` by `imm` bits
 
-- `mov <reg>, <imm>` -- move `imm` into `reg`
+- `mov <reg>, <reg/imm/addr/ref>` -- move `reg/imm/addr/ref` into `reg`
 - `load <reg>, <addr>` -- load value from `addr` into `reg`
 - `store <reg>, <addr>` -- store value from `reg` into `addr`
 - `push <reg>` -- push value from `reg` onto the stack

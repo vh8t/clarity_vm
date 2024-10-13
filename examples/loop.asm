@@ -1,4 +1,5 @@
-.global _start
+.section text
+    .global _start
 
 _start:
     xor r0, r0
