@@ -4,8 +4,8 @@
 #include <cstdint>
 
 struct CPU {
-    uint32_t registers[8];
-    uint32_t flags;
+  uint32_t registers[8];
+  uint32_t flags;
 };
 
 const uint32_t ZF = 1 << 0; // zero flag

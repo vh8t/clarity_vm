@@ -1,217 +1,586 @@
-#include <csignal>
-#include <regex>
-
-#include "debug.h"
 #include "vm.h"
+#include "bytecode.h"
 
-VM::VM(bool debug, const std::vector<uint8_t> &data)
-    : data(data), sp(0), debug(debug) {
-    for (int i = 0; i < 8; ++i) {
-        cpu.registers[i] = 0;
-    }
-    cpu.flags = 0;
+VM::VM(const std::vector<uint8_t> bc, const std::vector<Object> pool)
+    : bytecode(bc), const_pool(pool) {}
+
+Object VM::pop() {
+  if (stack.empty()) {
+    throw std::runtime_error(
+        "Stack underflow: Attempt to pop from an empty stack.");
+  }
+
+  Object obj = stack.back();
+  stack.pop_back();
+  return obj;
 }
 
-void VM::execute(const Instruction instr) {
-    switch (instr.opcode) {
-    case ADD:
-        cpu.registers[instr.operand1] += cpu.registers[instr.operand2];
-        break;
-    case SUB:
-        cpu.registers[instr.operand1] -= cpu.registers[instr.operand2];
-        break;
-    case MUL:
-        cpu.registers[instr.operand1] *= cpu.registers[instr.operand2];
-        break;
-    case DIV:
-        cpu.registers[instr.operand1] /= cpu.registers[instr.operand2];
-        break;
-    case MOD:
-        cpu.registers[instr.operand1] %= cpu.registers[instr.operand2];
-        break;
-    case INC:
-        cpu.registers[instr.operand1]++;
-        break;
-    case DEC:
-        cpu.registers[instr.operand1]--;
-        break;
+void VM::push(Object obj) { stack.push_back(obj); }
 
-    case AND:
-        cpu.registers[instr.operand1] &= cpu.registers[instr.operand2];
-        break;
-    case OR:
-        cpu.registers[instr.operand1] |= cpu.registers[instr.operand2];
-        break;
-    case XOR:
-        cpu.registers[instr.operand1] ^= cpu.registers[instr.operand2];
-        break;
-    case NOT:
-        cpu.registers[instr.operand1] = ~cpu.registers[instr.operand1];
-        break;
-    case SHL:
-        cpu.registers[instr.operand1] <<= instr.operand2;
-        break;
-    case SHR:
-        cpu.registers[instr.operand1] >>= instr.operand2;
-        break;
+uint32_t VM::btoi(uint32_t offset) {
+  if (offset + 3 >= bytecode.size()) {
+    throw std::runtime_error(
+        "Offset out of bounds: Unable to read 4 bytes from bytecode.");
+  }
 
-    case MOV_ADDR:
-        cpu.registers[instr.operand1] = instr.operand2;
-        break;
-    case MOV_REG:
-        cpu.registers[instr.operand1] = cpu.registers[instr.operand2];
-        break;
-    case MOV_FROM_REG:
-        cpu.registers[instr.operand1] = data[cpu.registers[instr.operand2]];
-        break;
-    case MOV_FROM_ADDR:
-        cpu.registers[instr.operand1] = data[instr.operand2];
-        break;
-    case MOV:
-        cpu.registers[instr.operand1] = instr.operand2;
-        break;
-    case LOAD:
-        cpu.registers[instr.operand1] = heap[instr.operand2];
-        break;
-    case STORE:
-        heap[instr.operand2] = cpu.registers[instr.operand1];
-        break;
-    case PUSH:
-        stack[sp++] = cpu.registers[instr.operand1];
-        break;
-    case POP:
-        cpu.registers[instr.operand1] = stack[--sp];
-        break;
+  return static_cast<uint32_t>(bytecode[offset]) |
+         (static_cast<uint32_t>(bytecode[offset + 1]) << 8) |
+         (static_cast<uint32_t>(bytecode[offset + 2]) << 16) |
+         (static_cast<uint32_t>(bytecode[offset + 3]) << 24);
+}
 
-    case JMP:
-        pc = instr.operand1;
-        return;
-    case JZ:
-        if (is_flag_set(cpu.flags, ZF)) {
-            pc = instr.operand1;
-            return;
-        }
-        break;
-    case JNZ:
-        if (!is_flag_set(cpu.flags, ZF)) {
-            pc = instr.operand1;
-            return;
-        }
-        break;
-    case JG:
-        if (is_flag_set(cpu.flags, GF)) {
-            pc = instr.operand1;
-            return;
-        }
-        break;
-    case JL:
-        if (is_flag_set(cpu.flags, LF)) {
-            pc = instr.operand1;
-            return;
-        }
-        break;
-    case CALL:
-        stack[sp++] = pc + 1;
-        pc = instr.operand1;
-        return;
-    case RET:
-        pc = stack[--sp];
-        return;
+void VM::run() {
+  while (!halt) {
 
-    case CMP: {
-        int32_t reg1 = cpu.registers[instr.operand1];
-        int32_t reg2 = cpu.registers[instr.operand2];
+    // NOTE: Debug code
+    // print_state();
+    // ENDNOTE
 
-        clear_flag(cpu.flags, ZF);
-        clear_flag(cpu.flags, GF);
-        clear_flag(cpu.flags, LF);
-        clear_flag(cpu.flags, SF);
-
-        if (reg1 == reg2)
-            set_flag(cpu.flags, ZF);
-        else if (reg1 > reg2)
-            set_flag(cpu.flags, GF);
-        else
-            set_flag(cpu.flags, LF);
-
-        if (reg1 < 0)
-            set_flag(cpu.flags, SF);
-        break;
+    try {
+      execute();
+    } catch (const std::exception &ex) {
+      std::cerr << ex.what() << std::endl;
+      exit(1);
     }
-    case TEST: {
-        int32_t result =
-            cpu.registers[instr.operand1] & cpu.registers[instr.operand2];
+  }
+}
 
-        clear_flag(cpu.flags, ZF);
-        clear_flag(cpu.flags, SF);
+void VM::execute() {
+  uint8_t byte = bytecode[pc];
+  switch (byte) {
+  case ADD: {
+    Object b = pop();
+    Object a = pop();
 
-        if (result == 0)
-            set_flag(cpu.flags, ZF);
-        else if (result < 0)
-            set_flag(cpu.flags, SF);
-        break;
+    if (a.is_type<int>() && b.is_type<int>()) {
+      int a_val = a.as<int>();
+      int b_val = b.as<int>();
+
+      push(Object(Type::INTEGER, a_val + b_val));
+    } else if ((a.is_type<int>() || a.is_type<double>()) &&
+               (b.is_type<int>() || b.is_type<double>())) {
+      double a_val;
+      double b_val;
+
+      if (a.is_type<int>()) {
+        a_val = static_cast<double>(a.as<int>());
+      } else {
+        a_val = a.as<double>();
+      }
+
+      if (b.is_type<int>()) {
+        b_val = static_cast<double>(b.as<int>());
+      } else {
+        b_val = b.as<double>();
+      }
+
+      push(Object(Type::FLOAT, a_val + b_val));
+    } else if (a.is_type<std::string>() && b.is_type<std::string>()) {
+      std::string a_val = a.as<std::string>();
+      std::string b_val = b.as<std::string>();
+
+      push(Object(Type::STRING, a_val + b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in ADD operation: unsupported operand types '" +
+          type_to_string(a.type) + "' + '" + type_to_string(b.type) + "'.");
     }
 
-    case NOP:
-        break;
-    case HLT:
-        running = false;
-        break;
-
-    default:
-        std::cerr << "unknow opcode: " << instr.opcode << std::endl;
-        break;
-    }
     pc++;
+    break;
+  }
+  case SUB: {
+    Object b = pop();
+    Object a = pop();
+
+    if (a.is_type<int>() && b.is_type<int>()) {
+      int a_val = a.as<int>();
+      int b_val = b.as<int>();
+
+      push(Object(Type::INTEGER, a_val - b_val));
+    } else if ((a.is_type<int>() || a.is_type<double>()) &&
+               (b.is_type<int>() || b.is_type<double>())) {
+      double a_val;
+      double b_val;
+
+      if (a.is_type<int>()) {
+        a_val = static_cast<double>(a.as<int>());
+      } else {
+        a_val = a.as<double>();
+      }
+
+      if (b.is_type<int>()) {
+        b_val = static_cast<double>(b.as<int>());
+      } else {
+        b_val = b.as<double>();
+      }
+
+      push(Object(Type::FLOAT, a_val - b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in SUB operation: unsupported operand types '" +
+          type_to_string(a.type) + "' - '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case MUL: {
+    Object b = pop();
+    Object a = pop();
+
+    if (a.is_type<int>() && b.is_type<int>()) {
+      int a_val = a.as<int>();
+      int b_val = b.as<int>();
+
+      push(Object(Type::INTEGER, a_val * b_val));
+    } else if ((a.is_type<int>() || a.is_type<double>()) &&
+               (b.is_type<int>() || b.is_type<double>())) {
+      double a_val;
+      double b_val;
+
+      if (a.is_type<int>()) {
+        a_val = static_cast<double>(a.as<int>());
+      } else {
+        a_val = a.as<double>();
+      }
+
+      if (b.is_type<int>()) {
+        b_val = static_cast<double>(b.as<int>());
+      } else {
+        b_val = b.as<double>();
+      }
+
+      push(Object(Type::FLOAT, a_val * b_val));
+    } else if (a.is_type<std::string>() && b.is_type<int>()) {
+      std::string a_val = a.as<std::string>();
+      int b_val = b.as<int>();
+
+      std::string repeated;
+      for (int i = 0; i < b_val; i++) {
+        repeated += a_val;
+      }
+
+      push(Object(Type::STRING, repeated));
+    } else {
+      throw std::runtime_error(
+          "Type error in MUL operation: unsupported operand types '" +
+          type_to_string(a.type) + "' * '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case DIV: {
+    Object b = pop();
+    Object a = pop();
+
+    if ((a.is_type<int>() || a.is_type<double>()) &&
+        (b.is_type<int>() || b.is_type<double>())) {
+      double a_val;
+      double b_val;
+
+      if (a.is_type<int>()) {
+        a_val = static_cast<double>(a.as<int>());
+      } else {
+        a_val = a.as<double>();
+      }
+
+      if (b.is_type<int>()) {
+        b_val = static_cast<double>(b.as<int>());
+      } else {
+        b_val = b.as<double>();
+      }
+
+      push(Object(Type::FLOAT, a_val / b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in DIV operation: unsupported operand types '" +
+          type_to_string(a.type) + "' / '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case IDIV: {
+    Object b = pop();
+    Object a = pop();
+
+    if ((a.is_type<int>() || a.is_type<double>()) &&
+        (b.is_type<int>() || b.is_type<double>())) {
+      double a_val;
+      double b_val;
+
+      if (a.is_type<int>()) {
+        a_val = static_cast<double>(a.as<int>());
+      } else {
+        a_val = a.as<double>();
+      }
+
+      if (b.is_type<int>()) {
+        b_val = static_cast<double>(b.as<int>());
+      } else {
+        b_val = b.as<double>();
+      }
+
+      push(Object(Type::INTEGER, static_cast<int>(a_val / b_val)));
+    } else {
+      throw std::runtime_error(
+          "Type error in IDIV operation: unsupported operand types '" +
+          type_to_string(a.type) + "' // '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case PUSH: {
+    uint32_t obj = btoi(pc + 1);
+    if (obj >= const_pool.size()) {
+      throw std::runtime_error(
+          "PUSH operation error: constant pool index " + std::to_string(obj) +
+          " is out of bounds (size: " + std::to_string(const_pool.size()) +
+          ").");
+    }
+    push(const_pool[obj]);
+
+    pc += 5;
+    break;
+  }
+  case POP: {
+    pop();
+    pc++;
+    break;
+  }
+  case HALT: {
+    halt = true;
+    pc++;
+    break;
+  }
+  case EQ: {
+    Object b = pop();
+    Object a = pop();
+
+    if (a.type != b.type) {
+      push(Object(Type::BOOLEAN, false));
+    } else if (a.is_type<std::string>()) {
+      std::string a_val = a.as<std::string>();
+      std::string b_val = b.as<std::string>();
+
+      push(Object(Type::BOOLEAN, a_val == b_val));
+    } else if (a.is_type<int>()) {
+      int a_val = a.as<int>();
+      int b_val = b.as<int>();
+
+      push(Object(Type::BOOLEAN, a_val == b_val));
+    } else if (a.is_type<double>()) {
+      double a_val = a.as<double>();
+      double b_val = b.as<double>();
+
+      push(Object(Type::BOOLEAN, a_val == b_val));
+    } else if (a.is_type<bool>()) {
+      bool a_val = a.as<double>();
+      bool b_val = b.as<double>();
+
+      push(Object(Type::BOOLEAN, a_val == b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in EQ operation: unsupported operand types '" +
+          type_to_string(a.type) + "' == '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case NEQ: {
+    Object b = pop();
+    Object a = pop();
+
+    if (a.type != b.type) {
+      push(Object(Type::BOOLEAN, true));
+    } else if (a.is_type<std::string>()) {
+      std::string a_val = a.as<std::string>();
+      std::string b_val = b.as<std::string>();
+
+      push(Object(Type::BOOLEAN, a_val != b_val));
+    } else if (a.is_type<int>()) {
+      int a_val = a.as<int>();
+      int b_val = b.as<int>();
+
+      push(Object(Type::BOOLEAN, a_val != b_val));
+    } else if (a.is_type<double>()) {
+      double a_val = a.as<double>();
+      double b_val = b.as<double>();
+
+      push(Object(Type::BOOLEAN, a_val != b_val));
+    } else if (a.is_type<bool>()) {
+      bool a_val = a.as<bool>();
+      bool b_val = b.as<bool>();
+
+      push(Object(Type::BOOLEAN, a_val != b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in NEQ operation: unsupported operand types '" +
+          type_to_string(a.type) + "' != '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case LT: {
+    Object b = pop();
+    Object a = pop();
+
+    if ((a.is_type<int>() || a.is_type<double>()) &&
+        (b.is_type<int>() || b.is_type<double>())) {
+      double a_val;
+      double b_val;
+
+      if (a.is_type<int>()) {
+        a_val = static_cast<double>(a.as<int>());
+      } else {
+        a_val = a.as<double>();
+      }
+
+      if (b.is_type<int>()) {
+        b_val = static_cast<double>(b.as<int>());
+      } else {
+        b_val = b.as<double>();
+      }
+
+      push(Object(Type::BOOLEAN, a_val < b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in LT operation: unsupported operand types '" +
+          type_to_string(a.type) + "' < '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case GT: {
+    Object b = pop();
+    Object a = pop();
+
+    if ((a.is_type<int>() || a.is_type<double>()) &&
+        (b.is_type<int>() || b.is_type<double>())) {
+      double a_val;
+      double b_val;
+
+      if (a.is_type<int>()) {
+        a_val = static_cast<double>(a.as<int>());
+      } else {
+        a_val = a.as<double>();
+      }
+
+      if (b.is_type<int>()) {
+        b_val = static_cast<double>(b.as<int>());
+      } else {
+        b_val = b.as<double>();
+      }
+
+      push(Object(Type::BOOLEAN, a_val > b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in GT operation: unsupported operand types '" +
+          type_to_string(a.type) + "' > '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case LTE: {
+    Object b = pop();
+    Object a = pop();
+
+    if ((a.is_type<int>() || a.is_type<double>()) &&
+        (b.is_type<int>() || b.is_type<double>())) {
+      double a_val;
+      double b_val;
+
+      if (a.is_type<int>()) {
+        a_val = static_cast<double>(a.as<int>());
+      } else {
+        a_val = a.as<double>();
+      }
+
+      if (b.is_type<int>()) {
+        b_val = static_cast<double>(b.as<int>());
+      } else {
+        b_val = b.as<double>();
+      }
+
+      push(Object(Type::BOOLEAN, a_val <= b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in LTE operation: unsupported operand types '" +
+          type_to_string(a.type) + "' <= '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case GTE: {
+    Object b = pop();
+    Object a = pop();
+
+    if ((a.is_type<int>() || a.is_type<double>()) &&
+        (b.is_type<int>() || b.is_type<double>())) {
+      double a_val;
+      double b_val;
+
+      if (a.is_type<int>()) {
+        a_val = static_cast<double>(a.as<int>());
+      } else {
+        a_val = a.as<double>();
+      }
+
+      if (b.is_type<int>()) {
+        b_val = static_cast<double>(b.as<int>());
+      } else {
+        b_val = b.as<double>();
+      }
+
+      push(Object(Type::BOOLEAN, a_val >= b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in GTE operation: unsupported operand types '" +
+          type_to_string(a.type) + "' >= '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case LOG_AND: {
+    Object b = pop();
+    Object a = pop();
+
+    if (a.is_type<bool>() && b.is_type<bool>()) {
+      bool a_val = a.as<bool>();
+      bool b_val = b.as<bool>();
+
+      push(Object(Type::BOOLEAN, a_val && b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in LOG_AND operation: unsupported operand types '" +
+          type_to_string(a.type) + "' && '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case LOG_OR: {
+    Object b = pop();
+    Object a = pop();
+
+    if (a.is_type<bool>() && b.is_type<bool>()) {
+      bool a_val = a.as<bool>();
+      bool b_val = b.as<bool>();
+
+      push(Object(Type::BOOLEAN, a_val || b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in LOG_OR operation: unsupported operand types '" +
+          type_to_string(a.type) + "' || '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case LOG_NOT: {
+    Object a = pop();
+
+    if (a.is_type<bool>()) {
+      bool a_val = a.as<bool>();
+
+      push(Object(Type::BOOLEAN, !a_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in LOG_NOT operation: unsupported operand types !'" +
+          type_to_string(a.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case BIT_AND: {
+    Object b = pop();
+    Object a = pop();
+
+    if (a.is_type<int>() && b.is_type<int>()) {
+      int a_val = a.as<int>();
+      int b_val = b.as<int>();
+
+      push(Object(Type::INTEGER, a_val & b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in BIT_AND operation: unsupported operand types '" +
+          type_to_string(a.type) + "' & '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case BIT_OR: {
+    Object b = pop();
+    Object a = pop();
+
+    if (a.is_type<int>() && b.is_type<int>()) {
+      int a_val = a.as<int>();
+      int b_val = b.as<int>();
+
+      push(Object(Type::INTEGER, a_val | b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in BIT_OR operation: unsupported operand types '" +
+          type_to_string(a.type) + "' | '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case BIT_NOT: {
+    Object a = pop();
+
+    if (a.is_type<int>()) {
+      int a_val = a.as<int>();
+
+      push(Object(Type::INTEGER, ~a_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in BIT_NOT operation: unsupported operand types ~'" +
+          type_to_string(a.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  case XOR: {
+    Object b = pop();
+    Object a = pop();
+
+    if (a.is_type<int>() && b.is_type<int>()) {
+      int a_val = a.as<int>();
+      int b_val = b.as<int>();
+
+      push(Object(Type::INTEGER, a_val ^ b_val));
+    } else {
+      throw std::runtime_error(
+          "Type error in BIT_XOR operation: unsupported operand types '" +
+          type_to_string(a.type) + "' ^ '" + type_to_string(b.type) + "'.");
+    }
+
+    pc++;
+    break;
+  }
+  }
 }
 
-int VM::run(const std::vector<Instruction> &program, const uint32_t start) {
-    std::vector<int> breakpoints;
-    running = true;
-    pc = start;
-    std::regex re("^b\\s+(\\d+)$");
-
-    bool d_running = false;
-
-    if (debug) {
-        init_term();
-        std::atexit(revert_term);
-        std::signal(SIGINT, sig_revert_term);
-        std::signal(SIGTERM, sig_revert_term);
-        clear_term();
-        print_debug(cpu, program[pc], pc, stack, sp);
-    }
-
-    while (running) {
-        if (debug && !d_running) {
-            std::string line;
-            std::getline(std::cin, line);
-
-            if (line == "s") {
-                execute(program[pc]);
-            } else if (line == "r") {
-                d_running = true;
-            } else if (line == "q") {
-                break;
-            } else if (line.rfind("b ", 0) == 0) {
-                std::smatch match;
-                if (std::regex_match(line, match, re)) {
-                    breakpoints.push_back(std::stoi(match[1]));
-                }
-            }
-            clear_term();
-            print_debug(cpu, program[pc], pc, stack, sp);
-        } else if (debug && d_running) {
-            execute(program[pc]);
-            clear_term();
-            print_debug(cpu, program[pc], pc, stack, sp);
-            if (std::find(breakpoints.begin(), breakpoints.end(), pc) !=
-                breakpoints.end())
-                d_running = false;
-        } else {
-            execute(program[pc]);
-        }
-    }
-
-    return cpu.registers[0];
+void VM::print_state() {
+  std::cout << "---------------" << std::endl;
+  std::cout << "PC: " << inst_to_string(bytecode[pc]) << std::endl;
+  std::cout << "Stack: \n[ ";
+  for (auto obj : stack) {
+    obj.print();
+  }
+  std::cout << "]" << std::endl;
 }

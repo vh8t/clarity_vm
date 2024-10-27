@@ -22,7 +22,7 @@ func isInstruction(s string) bool {
 
 func isDefinition(s string) bool {
 	defs := []string{
-		"byte", "bytes", "string",
+		"byte", "bytes", "string", "int",
 	}
 
 	for _, i := range defs {

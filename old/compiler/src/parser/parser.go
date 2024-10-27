@@ -25,6 +25,7 @@ const (
 	MOV_REG
 	MOV_FROM_ADDR
 	MOV_FROM_REG
+	MOV_INT
 	MOV
 	LOAD
 	STORE
@@ -46,9 +47,9 @@ const (
 var MAJOR byte = 1
 var MINOR byte = 1
 
-type Ref struct {
-	Label  string
-	Offset int
+type Def struct {
+	Addr int
+	Type string
 }
 
 func Parse(tokens []lexer.Token) (bytecode []byte) {
@@ -61,7 +62,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 	labels := make(map[string]int)
 
 	unknownDefinition := make(map[int]string)
-	definitions := make(map[string]int)
+	definitions := make(map[string]Def)
 
 	data := []byte{}
 
@@ -165,7 +166,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					i = len(tokens)
 					continue
 				} else {
-					definitions[name] = dataOffset
+					definitions[name] = Def{dataOffset, "byte"}
 				}
 				dataOffset++
 				i += 3
@@ -203,6 +204,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					i += 2
 					bytes = append(bytes, byte(n))
 				}
+				i++
 				data = append(data, bytes...)
 				if _, ok := definitions[name]; ok {
 					fmt.Fprintf(os.Stderr, "%d:%d duplicate definition: `%s`\n", token.Row, token.Col, token.Value)
@@ -210,7 +212,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					i = len(tokens)
 					continue
 				} else {
-					definitions[name] = dataOffset
+					definitions[name] = Def{dataOffset, "bytes"}
 				}
 				dataOffset += len(bytes)
 			case "string":
@@ -229,7 +231,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					i = len(tokens)
 					continue
 				} else {
-					definitions[name] = dataOffset
+					definitions[name] = Def{dataOffset, "string"}
 				}
 				dataOffset += len(bytes)
 				i += 3
@@ -248,10 +250,15 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					i = len(tokens)
 					continue
 				} else {
-					definitions[name] = dataOffset
+					definitions[name] = Def{dataOffset, "int"}
 				}
 				dataOffset += len(bytes)
 				i += 3
+			default:
+				fmt.Fprintf(os.Stderr, "%d:%d unknown data type `%s`\n", token.Row, token.Col, token.Value)
+				err = true
+				i = len(tokens)
+				continue
 			}
 		case lexer.INSTR:
 			if section != "text" {
@@ -502,7 +509,7 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 					i += 4
 				case lexer.IDENT:
 					if addr, ok := definitions[tokens[i+3].Value]; ok {
-						b := int32ToBytes(int32(addr))
+						b := int32ToBytes(int32(addr.Addr))
 						bytecode = append(bytecode, MOV_ADDR, regToByte(tokens[i+1].Value))
 						bytecode = append(bytecode, b...)
 					} else {
@@ -529,9 +536,13 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 						bytecode = append(bytecode, MOV_FROM_REG, regToByte(tokens[i+1].Value), regToByte(tokens[i+4].Value))
 						bcOffset += 3
 					case lexer.IDENT:
-						if addr, ok := definitions[tokens[i+3].Value]; ok {
-							b := int32ToBytes(int32(addr))
-							bytecode = append(bytecode, MOV_FROM_ADDR, regToByte(tokens[i+1].Value))
+						if addr, ok := definitions[tokens[i+4].Value]; ok {
+							b := int32ToBytes(int32(addr.Addr))
+							if addr.Type == "int" {
+								bytecode = append(bytecode, MOV_INT, regToByte(tokens[i+1].Value))
+							} else {
+								bytecode = append(bytecode, MOV_FROM_ADDR, regToByte(tokens[i+1].Value))
+							}
 							bytecode = append(bytecode, b...)
 						} else {
 							bytecode = append(bytecode, MOV_FROM_ADDR, regToByte(tokens[i+1].Value), 0, 0, 0, 0)
@@ -817,10 +828,11 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 			pcOffset++
 		}
 
-		if i < len(tokens) && tokens[i].Kind == lexer.NEWLINE {
+		if tokens[i].Kind == lexer.NEWLINE {
 			i++
 		} else {
-			fmt.Fprintf(os.Stderr, "missing new line after instruction\n")
+			fmt.Fprintf(os.Stderr, "%s %s %s\n", tokens[i-1].Kind, tokens[i].Kind, tokens[i+1].Kind)
+			fmt.Fprintf(os.Stderr, "%d:%d missing new line after instruction\n", token.Row, token.Col)
 			err = true
 			i = len(tokens)
 			continue
@@ -842,11 +854,17 @@ func Parse(tokens []lexer.Token) (bytecode []byte) {
 
 	for ref, label := range unknownDefinition {
 		if addr, ok := definitions[label]; ok {
-			b := int32ToBytes(int32(addr))
+			if bytecode[ref-2] == MOV_FROM_ADDR && addr.Type == "int" {
+				bytecode[ref-2] = MOV_INT
+			}
+			b := int32ToBytes(int32(addr.Addr))
 			bytecode[ref] = b[0]
 			bytecode[ref+1] = b[1]
 			bytecode[ref+2] = b[2]
 			bytecode[ref+3] = b[3]
+		} else {
+			fmt.Fprintf(os.Stderr, "undefined definition `%s`\n", label)
+			err = true
 		}
 	}
 

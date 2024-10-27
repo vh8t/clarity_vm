@@ -22,7 +22,6 @@ func main() {
 	}
 
 	outfile := strings.TrimSuffix(filepath.Base(os.Args[1]), filepath.Ext(os.Args[1]))
-
 	tokens := lexer.Tokenize(contents)
 	bytecode := parser.Parse(tokens)
 
