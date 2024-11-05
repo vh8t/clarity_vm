@@ -17,6 +17,6 @@ struct File {
 };
 
 File load_from_file(string path);
-void generate_file(File file);
+void generate_file(File file, string out);
 
 #endif

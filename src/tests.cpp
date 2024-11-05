@@ -356,8 +356,8 @@ void encode_bytecode_test() {
   };
   // clang-format on
 
-  File file = {0, 1, bytecode, const_pool, 0};
-  generate_file(file);
+  File file = {MAJOR, MINOR, bytecode, const_pool, 0};
+  generate_file(file, "out.bin");
 }
 // encode_bytecode_test }}}
 

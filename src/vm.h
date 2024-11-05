@@ -4,6 +4,9 @@
 #include "object.h"
 #include <cstdint>
 
+#define MAJOR 0
+#define MINOR 1
+
 using std::vector, std::cerr, std::string, std::endl, std::cout;
 
 class VM {

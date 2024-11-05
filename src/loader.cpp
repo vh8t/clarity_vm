@@ -78,7 +78,7 @@ File load_from_file(string path) {
   return file_data;
 }
 
-void generate_file(File file) {
+void generate_file(File file, string out) {
   vector<char> file_data;
   vector<uint8_t> const_pool;
 
@@ -136,7 +136,7 @@ void generate_file(File file) {
   file_data.insert(file_data.end(), file.bytecode.begin(), file.bytecode.end());
   file_data.insert(file_data.end(), const_pool.begin(), const_pool.end());
 
-  ofstream out_file("out.bin", ios::binary);
+  ofstream out_file(out, ios::binary);
   out_file.write(file_data.data(), file_data.size());
   out_file.close();
 }
