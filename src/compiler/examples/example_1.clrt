@@ -1,1 +1,15 @@
+import "std.random"
+import "std.io"
 
+// main entry point
+fn main(argc: Int, argv: Str[]): Int
+  number = (10 + 2 * 4) * random.range(1, 10)
+
+  if number > 100
+    printf("%d is more than 100\n", number)
+  else
+    printf("%d is less than 101\n", number)
+  end
+
+  return 0
+end

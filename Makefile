@@ -1,7 +1,6 @@
 CXX = g++
 CXXFLAGS = -Wall -Wextra -g -O2
 
-INCLUDES = -I./include
 SRC_DIR = src
 BUILD_DIR = build
 DIST_DIR = dist
@@ -19,7 +18,7 @@ $(TARGET): $(OBJECTS)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@mkdir -p $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
 	rm -rf $(BUILD_DIR) $(DIST_DIR)

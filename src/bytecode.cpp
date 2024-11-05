@@ -1,6 +1,6 @@
 #include "bytecode.h"
 
-std::string inst_to_string(uint8_t inst) {
+string inst_to_string(uint8_t inst) {
   switch (inst) {
   case ADD:
     return "ADD";
@@ -45,6 +45,6 @@ std::string inst_to_string(uint8_t inst) {
   case XOR:
     return "XOR";
   default:
-    return "UNKNOW";
+    return "UNKNOWN";
   }
 }

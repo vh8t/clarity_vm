@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <string>
 
+using std::string;
+
 enum {
   ADD,
   SUB,
@@ -30,6 +32,6 @@ enum {
   XOR,
 };
 
-std::string inst_to_string(uint8_t inst);
+string inst_to_string(uint8_t inst);
 
 #endif // BYTECODE_H

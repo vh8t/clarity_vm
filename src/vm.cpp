@@ -1,7 +1,7 @@
 #include "vm.h"
 #include "bytecode.h"
 
-VM::VM(const std::vector<uint8_t> bc, const std::vector<Object> pool)
+VM::VM(const vector<uint8_t> bc, const vector<Object> pool)
     : bytecode(bc), const_pool(pool) {}
 
 Object VM::pop() {
@@ -39,7 +39,7 @@ void VM::run() {
     try {
       execute();
     } catch (const std::exception &ex) {
-      std::cerr << ex.what() << std::endl;
+      cerr << ex.what() << endl;
       exit(1);
     }
   }
@@ -75,9 +75,9 @@ void VM::execute() {
       }
 
       push(Object(Type::FLOAT, a_val + b_val));
-    } else if (a.is_type<std::string>() && b.is_type<std::string>()) {
-      std::string a_val = a.as<std::string>();
-      std::string b_val = b.as<std::string>();
+    } else if (a.is_type<string>() && b.is_type<string>()) {
+      string a_val = a.as<string>();
+      string b_val = b.as<string>();
 
       push(Object(Type::STRING, a_val + b_val));
     } else {
@@ -152,11 +152,11 @@ void VM::execute() {
       }
 
       push(Object(Type::FLOAT, a_val * b_val));
-    } else if (a.is_type<std::string>() && b.is_type<int>()) {
-      std::string a_val = a.as<std::string>();
+    } else if (a.is_type<string>() && b.is_type<int>()) {
+      string a_val = a.as<string>();
       int b_val = b.as<int>();
 
-      std::string repeated;
+      string repeated;
       for (int i = 0; i < b_val; i++) {
         repeated += a_val;
       }
@@ -262,9 +262,9 @@ void VM::execute() {
 
     if (a.type != b.type) {
       push(Object(Type::BOOLEAN, false));
-    } else if (a.is_type<std::string>()) {
-      std::string a_val = a.as<std::string>();
-      std::string b_val = b.as<std::string>();
+    } else if (a.is_type<string>()) {
+      string a_val = a.as<string>();
+      string b_val = b.as<string>();
 
       push(Object(Type::BOOLEAN, a_val == b_val));
     } else if (a.is_type<int>()) {
@@ -297,9 +297,9 @@ void VM::execute() {
 
     if (a.type != b.type) {
       push(Object(Type::BOOLEAN, true));
-    } else if (a.is_type<std::string>()) {
-      std::string a_val = a.as<std::string>();
-      std::string b_val = b.as<std::string>();
+    } else if (a.is_type<string>()) {
+      string a_val = a.as<string>();
+      string b_val = b.as<string>();
 
       push(Object(Type::BOOLEAN, a_val != b_val));
     } else if (a.is_type<int>()) {
@@ -576,11 +576,11 @@ void VM::execute() {
 }
 
 void VM::print_state() {
-  std::cout << "---------------" << std::endl;
-  std::cout << "PC: " << inst_to_string(bytecode[pc]) << std::endl;
-  std::cout << "Stack: \n[ ";
+  cout << "---------------" << endl;
+  cout << "PC: " << inst_to_string(bytecode[pc]) << endl;
+  cout << "Stack: \n[ ";
   for (auto obj : stack) {
     obj.print();
   }
-  std::cout << "]" << std::endl;
+  cout << "]" << endl;
 }

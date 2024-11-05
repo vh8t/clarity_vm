@@ -1,77 +1,91 @@
 #include "tests.h"
 #include "bytecode.h"
+#include "loader.h"
 #include "object.h"
 #include "vm.h"
 #include <cmath>
-#include <cstdint>
+#include <fstream>
 #include <iomanip>
+#include <ios>
+#include <iterator>
 #include <string>
-#include <vector>
 
-const double EPSILON = 1e-5;
+const double EPSILON = 1e-6;
+
+struct Result {
+  bool passed;
+  string error;
+};
 
 // test_utils {{{
-void print_test_result(const std::string &test_name, const std::string &test,
-                       bool passed, const Object &result) {
+void print_test_result(const string &test_name, const string &test,
+                       Result res) {
   std::cout << "["
-            << (passed ? "\x1b[1;32mPASSED\x1b[0m" : "\x1b[1;31mFAILED\x1b[0m")
-            << "] \x1b[34m" << std::left << std::setw(15) << test_name
+            << (res.passed ? "\x1b[1;32mPASSED\x1b[0m"
+                           : "\x1b[1;31mFAILED\x1b[0m")
+            << "] \x1b[34m" << std::left << std::setw(18) << test_name
             << "\x1b[0m " << test;
-  if (!passed) {
-    std::cout << " - \x1b[33mgot: ";
-    result.print();
+  if (!res.passed) {
+    std::cout << "\n\t\x1b[33m" << res.error;
   }
   std::cout << "\x1b[0m" << std::endl;
 }
 
-bool assert_int_result(const Object &result, int expected_value) {
+Result assert_int_result(const Object &result, int expected_value) {
   if (!result.is_type<int>()) {
-    return false;
+    return {false, "type mismatch"};
   }
-  return result.as<int>() == expected_value;
+  return {result.as<int>() == expected_value,
+          "value mismatch - wanted: " + std::to_string(expected_value) +
+              ", got: " + std::to_string(result.as<int>())};
 }
 
-bool assert_float_result(const Object &result, double expected_value) {
+Result assert_float_result(const Object &result, double expected_value) {
   if (!result.is_type<double>()) {
-    return false;
+    return {false, "type mismatch"};
   }
-  return std::fabs(result.as<double>() - expected_value) < EPSILON;
+  return {std::fabs(result.as<double>() - expected_value) < EPSILON,
+          "value mismatch - wanted: " + std::to_string(expected_value) +
+              ", got: " + std::to_string(result.as<double>())};
 }
 
-bool assert_string_result(const Object &result, std::string expected_value) {
-  if (!result.is_type<std::string>()) {
-    return false;
+Result assert_string_result(const Object &result, string expected_value) {
+  if (!result.is_type<string>()) {
+    return {false, "type mismatch"};
   }
-  return result.as<std::string>() == expected_value;
+  return {result.as<string>() == expected_value,
+          "value mismatch - wanted: " + expected_value +
+              ", got: " + result.as<string>()};
 }
 
-bool assert_bool_result(const Object &result, bool expected_value) {
+Result assert_bool_result(const Object &result, bool expected_value) {
   if (!result.is_type<bool>()) {
-    return false;
+    return {false, "type mismatch"};
   }
-  return result.as<bool>() == expected_value;
+  return {result.as<bool>() == expected_value,
+          "value mismatch - wanted: " + std::to_string(expected_value) +
+              ", got: " + std::to_string(result.as<bool>())};
 }
 
 void run_vm_test(const std::vector<uint8_t> &bytecode,
-                 const std::vector<Object> &const_pool,
-                 const std::string &test_name, const std::string &test,
-                 const Object &expected_result) {
+                 const std::vector<Object> &const_pool, const string &test_name,
+                 const string &test, const Object &expected_result) {
   VM vm(bytecode, const_pool);
   vm.run();
   Object result = vm.pop();
 
-  bool passed = false;
+  Result res;
   if (expected_result.is_type<int>()) {
-    passed = assert_int_result(result, expected_result.as<int>());
+    res = assert_int_result(result, expected_result.as<int>());
   } else if (expected_result.is_type<double>()) {
-    passed = assert_float_result(result, expected_result.as<double>());
-  } else if (expected_result.is_type<std::string>()) {
-    passed = assert_string_result(result, expected_result.as<std::string>());
+    res = assert_float_result(result, expected_result.as<double>());
+  } else if (expected_result.is_type<string>()) {
+    res = assert_string_result(result, expected_result.as<string>());
   } else if (expected_result.is_type<bool>()) {
-    passed = assert_bool_result(result, expected_result.as<bool>());
+    res = assert_bool_result(result, expected_result.as<bool>());
   }
 
-  print_test_result(test_name, test, passed, result);
+  print_test_result(test_name, test, res);
 }
 // test_utils }}}
 
@@ -319,6 +333,75 @@ void xor_test() {
 }
 // xor_test }}}
 
+// encode_bytecode_test {{{
+void encode_bytecode_test() {
+  // clang-format off
+  const vector<uint8_t> bytecode = {
+    PUSH, 0, 0, 0, 0,
+    PUSH, 1, 0, 0, 0,
+    ADD,
+    PUSH, 2, 0, 0, 0,
+    DIV,
+    HALT,
+  };
+  const vector<Object> const_pool = {
+    Object(INTEGER, 2839),
+    Object(FLOAT, 82.2842),
+    Object(INTEGER, 28),
+    Object(LIST, vector<Object>{
+      Object(INTEGER, 10),
+      Object(INTEGER, 12),
+      Object(INTEGER, 821),
+    }),
+  };
+  // clang-format on
+
+  File file = {0, 1, bytecode, const_pool, 0};
+  generate_file(file);
+}
+// encode_bytecode_test }}}
+
+// load_bytecode_test {{{
+void load_bytecode_test() {
+  File file = load_from_file("out.bin");
+  run_vm_test(file.bytecode, file.const_pool, "load_bytecode_test",
+              "(2839 + 82.2842) / 28 = 104.331579", Object(FLOAT, 104.331579));
+}
+// load_bytecode_test }}}
+
+// const_load_test {{{
+void write_objects() {
+  vector<Object> objs = {
+      Object(LIST,
+             vector<Object>{Object(INTEGER, 43),
+                            Object(STRING, "Hello, World!"),
+                            Object(BOOLEAN, true), Object(FLOAT, 10.2841)}),
+      Object(INTEGER, 10), Object()};
+
+  vector<uint8_t> bytecode;
+
+  for (auto obj : objs)
+    encode_object(obj, bytecode);
+
+  std::ofstream file("obj.bin", std::ios::binary);
+  file.write(reinterpret_cast<const char *>(bytecode.data()), bytecode.size());
+  file.close();
+}
+
+void const_load_test() {
+  std::ifstream file("obj.bin", std::ios::binary);
+  vector<uint8_t> bytecode((std::istreambuf_iterator<char>(file)),
+                           std::istreambuf_iterator<char>());
+  file.close();
+
+  while (bytecode.size() > 0) {
+    decode_object(bytecode).print();
+    cout << " ";
+  }
+  cout << endl;
+}
+// const_load_test }}}
+
 // tests {{{
 void tests() {
   add_test();
@@ -339,5 +422,8 @@ void tests() {
   bit_or_test();
   bit_not_test();
   xor_test();
+
+  encode_bytecode_test();
+  load_bytecode_test();
 }
 // tests }}}
